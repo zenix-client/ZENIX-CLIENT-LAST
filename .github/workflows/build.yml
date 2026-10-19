@@ -1,0 +1,64 @@
+name: Build ZENIX CLIENT
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '*.zip'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract source archive
+        run: |
+          set -e
+          ARCHIVE=$(find . -maxdepth 1 -type f \
+            -name 'ZENIX-CLIENT-GUI-MISC-BASEFINDER-V2-SOURCE.zip' \
+            -print -quit)
+
+          if [ -z "$ARCHIVE" ]; then
+            echo "ERROR: Source ZIP not found in repository root."
+            exit 1
+          fi
+
+          mkdir project
+          unzip -q "$ARCHIVE" -d project
+
+          if [ ! -f project/build.gradle ]; then
+            echo "ERROR: build.gradle not found after extraction."
+            exit 1
+          fi
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.12'
+
+      - name: Build mod
+        working-directory: project
+        run: gradle build --no-daemon --stacktrace
+
+      - name: Upload JAR files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZENIX-CLIENT-JAR
+          path: |
+            project/build/libs/*.jar
+            !project/build/libs/*-sources.jar
+          if-no-files-found: error
+          retention-days: 14
